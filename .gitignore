@@ -39,3 +39,4 @@ coverage/
 
 # Uploads
 apps/admin/uploads/
+.github/workflows/

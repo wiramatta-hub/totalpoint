@@ -1,0 +1,533 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum MemberStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
+enum CampaignType {
+  PURCHASE  // สะสมแต้มจากการซื้อสินค้า
+  BOOTH     // สะสมแต้มจากงานออกบูธ
+  ACTIVITY  // กิจกรรมพิเศษ
+  BIRTHDAY  // แคมเปญวันเกิด
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum OrderChannel {
+  SHOPEE
+  TIKTOK
+  LAZADA
+  BOOTH
+  HOMMALL
+  MANUAL
+}
+
+enum OrderStatus {
+  PENDING     // รอตรวจสอบ
+  PROCESSING  // กำลังตรวจสอบ (OCR)
+  APPROVED    // อนุมัติ - ให้คะแนนแล้ว
+  REJECTED    // ปฏิเสธ
+  CANCELLED   // ยกเลิก
+}
+
+enum RewardType {
+  PHYSICAL          // ของรางวัลชิ้น
+  COUPON            // คูปองส่วนลดทั่วไป
+  HOMMALL_COUPON    // คูปองสำหรับใช้ใน Hommall
+  PRIVILEGE         // สิทธิพิเศษ / VIP Services
+  LOTTERY_TICKET    // สิทธิ์ชิงโชค
+}
+
+enum PointTransactionType {
+  EARN_PURCHASE   // ได้จากซื้อสินค้า
+  EARN_BOOTH      // ได้จากงานออกบูธ
+  EARN_ACTIVITY   // ได้จากกิจกรรม
+  EARN_BIRTHDAY   // โบนัสวันเกิด
+  EARN_BONUS      // โบนัสพิเศษจาก Admin
+  EARN_HOMMALL    // ได้จากการซื้อใน Hommall
+  REDEEM_REWARD   // แลกของรางวัล
+  REDEEM_COUPON   // แลกคูปอง
+  EXPIRE          // หมดอายุ
+  ADMIN_ADJUST    // Admin ปรับปรุง (manual)
+  REVERSAL        // คืนคะแนน (Order ถูกยกเลิก)
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+// ============================================================
+// MEMBER TIER
+// ============================================================
+
+model MemberTier {
+  id                  String   @id @default(cuid())
+  name                String   // "Member", "Silver", "Gold", "Platinum"
+  nameTh              String   // ชื่อภาษาไทย
+  minLifetimePoints   Int      @default(0)
+  pointMultiplier     Float    @default(1.0) // คูณเพิ่มตาม tier
+  birthdayBonusPoints Int      @default(0)  // คะแนนโบนัสวันเกิด
+  benefits            String[] // รายการสิทธิประโยชน์
+  color               String   @default("#6B7280")
+  badgeIcon           String?  // URL รูป badge
+  sortOrder           Int      @default(0)
+  isDefault           Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members Member[]
+
+  @@index([minLifetimePoints])
+}
+
+// ============================================================
+// MEMBER
+// ============================================================
+
+model Member {
+  id                       String       @id @default(cuid())
+  lineUserId               String       @unique
+  lineDisplayName          String?
+  linePictureUrl           String?
+
+  phone                    String?      @unique
+  email                    String?
+  firstName                String?
+  lastName                 String?
+  birthDate                DateTime?
+
+  status                   MemberStatus @default(ACTIVE)
+  tierId                   String
+  tier                     MemberTier   @relation(fields: [tierId], references: [id])
+
+  currentPoints            Int          @default(0)  // ยอดคะแนนปัจจุบัน
+  lifetimePoints           Int          @default(0)  // คะแนนสะสมตลอดชีพ (ใช้คำนวณ tier)
+
+  registeredAt             DateTime     @default(now())
+  lastActivityAt           DateTime     @default(now())
+  birthdayRewardGivenYear  Int?         // ปีล่าสุดที่ได้รับรางวัลวันเกิด
+
+  hommallMemberId          String?      // Hommall member ID
+
+  updatedAt                DateTime     @updatedAt
+
+  pointLedger      PointLedger[]
+  orderSubmissions OrderSubmission[]
+  redemptions      Redemption[]
+  lotteryEntries   LotteryEntry[]
+  hommallSync      HommallSync?
+
+  @@index([lineUserId])
+  @@index([phone])
+  @@index([status])
+  @@index([tierId])
+}
+
+// ============================================================
+// CAMPAIGN
+// ============================================================
+
+model Campaign {
+  id          String         @id @default(cuid())
+  name        String
+  nameTh      String
+  description String?
+  imageUrl    String?
+
+  type   CampaignType
+  status CampaignStatus @default(DRAFT)
+
+  startDate DateTime
+  endDate   DateTime
+
+  // การคำนวณคะแนน
+  pointsPerBaht         Float  @default(1.0)  // คะแนนต่อ 1 บาท
+  minPurchaseAmount     Float  @default(0)    // ยอดซื้อขั้นต่ำ (บาท)
+  maxPointsPerOrder     Int?                  // จำกัดคะแนนสูงสุดต่อออเดอร์
+  maxOrdersPerDay       Int?                  // จำกัดออเดอร์ต่อวันต่อลูกค้า
+  pointMultiplier       Float  @default(1.0)  // ตัวคูณพิเศษ
+
+  // ช่องทางที่ร่วมแคมเปญ
+  channels OrderChannel[]
+
+  // งานออกบูธ
+  isBoothEvent     Boolean @default(false)
+  boothEventCode   String? @unique // QR code สำหรับงาน
+  boothBonusPoints Int     @default(0)
+
+  // การชิงโชค
+  hasLottery               Boolean @default(false)
+  lotteryPurchasePerTicket Float?  // ยอดซื้อต่อ 1 สิทธิ์ชิงโชค
+
+  // กติกาพิเศษ (JSON flexible rules)
+  rules Json?
+
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderSubmissions OrderSubmission[]
+  lotteryEntries   LotteryEntry[]
+  campaignRewards  CampaignReward[]
+  lotteryConfig    LotteryConfig?
+  boothSessions    BoothSession[]
+
+  @@index([status, startDate, endDate])
+  @@index([type, status])
+}
+
+// ============================================================
+// REWARD
+// ============================================================
+
+model Reward {
+  id          String     @id @default(cuid())
+  name        String
+  nameTh      String
+  description String?
+  imageUrl    String?
+
+  type       RewardType
+  pointsCost Int
+
+  stock     Int? // null = unlimited
+  stockUsed Int  @default(0)
+
+  maxPerMember Int? // จำกัดต่อคน
+  maxPerDay    Int? // จำกัดต่อวัน
+
+  isActive   Boolean  @default(true)
+  expiryDays Int?     // อายุรางวัลหลังแลก (วัน)
+  validFrom  DateTime?
+  validUntil DateTime?
+
+  // Coupon config
+  couponPrefix String?
+  couponValue  Float?  // มูลค่าส่วนลด
+  couponType   String? // "PERCENT" | "FIXED"
+
+  // Hommall config
+  hommallProductId    String?
+  hommallCouponValue  Float?
+  hommallCouponType   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  redemptions     Redemption[]
+  campaignRewards CampaignReward[]
+
+  @@index([isActive, pointsCost])
+  @@index([type, isActive])
+}
+
+// ============================================================
+// CAMPAIGN <-> REWARD (Many-to-many)
+// ============================================================
+
+model CampaignReward {
+  id         String @id @default(cuid())
+  campaignId String
+  rewardId   String
+
+  campaign  Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  sortOrder Int      @default(0)
+
+  @@unique([campaignId, rewardId])
+  @@index([campaignId])
+}
+
+// ============================================================
+// ORDER SUBMISSION (หลักฐานการซื้อ)
+// ============================================================
+
+model OrderSubmission {
+  id       String @id @default(cuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
+
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
+  channel OrderChannel
+
+  // Order number (สำหรับ marketplace)
+  orderNumber   String?
+  shopName      String? // ชื่อร้านค้าใน marketplace
+
+  // ยอดซื้อ
+  purchaseAmount Float?
+  purchaseDate   DateTime?
+
+  // ใบเสร็จ / สลิป
+  receiptUrl      String?  // URL ไฟล์
+  receiptHash     String?  @unique // MD5/SHA256 สำหรับกัน duplicate
+  receiptMimeType String?
+
+  // OCR Results
+  ocrRawText    String?
+  ocrResult     Json?   // structured OCR data
+  ocrConfidence Float?  @default(0)
+  ocrProcessedAt DateTime?
+
+  // สถานะ
+  status       OrderStatus @default(PENDING)
+  statusReason String?
+
+  // คะแนนและสิทธิ์
+  pointsEarned   Int? // คะแนนที่ได้รับ
+  lotteryTickets Int? // สิทธิ์ชิงโชคที่ได้รับ
+
+  // Booth session
+  boothSessionId String?
+  boothSession   BoothSession? @relation(fields: [boothSessionId], references: [id])
+
+  // Review
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  reviewNote  String?
+
+  submittedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pointLedgerEntry PointLedger?
+
+  @@unique([channel, orderNumber])
+  @@index([memberId, status])
+  @@index([status, submittedAt])
+  @@index([campaignId])
+}
+
+// ============================================================
+// POINT LEDGER (บัญชีคะแนน - immutable log)
+// ============================================================
+
+model PointLedger {
+  id       String @id @default(cuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
+
+  type         PointTransactionType
+  points       Int     // บวก = ได้รับ, ลบ = ใช้/หมดอายุ
+  balanceAfter Int     // snapshot ยอดคะแนนหลังรายการนี้
+
+  description   String?
+  referenceId   String? // ID ของ source (orderId, redemptionId, etc.)
+  referenceType String? // "OrderSubmission" | "Redemption" | "AdminAdjust"
+
+  orderSubmissionId String?          @unique
+  orderSubmission   OrderSubmission? @relation(fields: [orderSubmissionId], references: [id])
+
+  expiresAt DateTime?
+  isExpired Boolean   @default(false)
+
+  createdBy String?   // adminUserId หรือ "SYSTEM"
+  createdAt DateTime  @default(now())
+
+  @@index([memberId, createdAt])
+  @@index([type, createdAt])
+  @@index([expiresAt, isExpired])
+}
+
+// ============================================================
+// REDEMPTION (การแลกรางวัล)
+// ============================================================
+
+model Redemption {
+  id       String @id @default(cuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
+
+  rewardId String
+  reward   Reward @relation(fields: [rewardId], references: [id])
+
+  pointsUsed Int
+
+  // Coupon / Code
+  couponCode   String?  @unique
+  couponUsed   Boolean  @default(false)
+  couponUsedAt DateTime?
+
+  // Hommall voucher
+  hommallVoucherId   String?
+  hommallVoucherSync Boolean @default(false)
+
+  expiresAt  DateTime?
+  redeemedAt DateTime  @default(now())
+
+  pointLedgerEntryId String?
+
+  @@index([memberId, redeemedAt])
+  @@index([couponCode])
+}
+
+// ============================================================
+// LOTTERY
+// ============================================================
+
+model LotteryConfig {
+  id         String   @id @default(cuid())
+  campaignId String   @unique
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+
+  drawDate   DateTime?
+  maxWinners Int?
+  prizeConfig Json?   // Array of prizes with quantities
+
+  isDrawn  Boolean  @default(false)
+  drawnAt  DateTime?
+  drawnBy  String?
+  drawNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries LotteryEntry[]
+}
+
+model LotteryEntry {
+  id       String @id @default(cuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id])
+
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+
+  lotteryConfigId String
+  lotteryConfig   LotteryConfig @relation(fields: [lotteryConfigId], references: [id])
+
+  tickets  Int     @default(1)
+  isWinner Boolean @default(false)
+  prize    String? // ชื่อรางวัลที่ได้
+  prizeRef String? // เลขรางวัล / reference
+
+  createdAt DateTime @default(now())
+
+  @@index([campaignId, memberId])
+  @@index([lotteryConfigId, isWinner])
+}
+
+// ============================================================
+// BOOTH SESSION (งานออกบูธ)
+// ============================================================
+
+model BoothSession {
+  id         String   @id @default(cuid())
+  campaignId String?
+  campaign   Campaign? @relation(fields: [campaignId], references: [id])
+
+  name       String   // ชื่องาน
+  location   String?  // สถานที่จัดงาน
+  qrCode     String   @unique // QR code สำหรับซื้อหรือลงทะเบียน
+
+  startDate  DateTime
+  endDate    DateTime
+  isActive   Boolean  @default(true)
+
+  bonusPoints   Int @default(0)   // คะแนนโบนัสเพิ่มสำหรับซื้อในงาน
+  checkInPoints Int @default(0)   // คะแนนสำหรับแค่เช็คอิน
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderSubmissions OrderSubmission[]
+}
+
+// ============================================================
+// ADMIN USER
+// ============================================================
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  password     String    // bcrypt hashed
+  role         AdminRole @default(STAFF)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id          String     @id @default(cuid())
+  adminUserId String?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id])
+
+  action    String // "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "REJECT" | "ADJUST_POINTS"
+  entity    String // "Campaign" | "Member" | "Reward" | "OrderSubmission" | "PointLedger"
+  entityId  String
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([adminUserId, createdAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// HOMMALL INTEGRATION
+// ============================================================
+
+model HommallSync {
+  id       String @id @default(cuid())
+  memberId String @unique
+  member   Member @relation(fields: [memberId], references: [id])
+
+  hommallMemberId  String  @unique
+  hommallEmail     String?
+  hommallPointSync Boolean @default(false)
+
+  lastSyncedAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ============================================================
+// SYSTEM CONFIG (Key-Value store)
+// ============================================================
+
+model SystemConfig {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt @default(now())
+  updatedBy   String?
+}

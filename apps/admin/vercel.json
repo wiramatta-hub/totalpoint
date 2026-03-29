@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@total-point/admin",
+  "installCommand": "cd ../.. && pnpm install",
+  "outputDirectory": "apps/admin/.next",
+  "framework": "nextjs",
+  "rootDirectory": "apps/admin"
+}

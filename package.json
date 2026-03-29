@@ -1,0 +1,26 @@
+{
+  "name": "total-point",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev --parallel",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "db:generate": "pnpm --filter @total-point/database generate",
+    "db:push": "pnpm --filter @total-point/database db:push",
+    "db:migrate": "pnpm --filter @total-point/database migrate",
+    "db:studio": "pnpm --filter @total-point/database studio",
+    "db:seed": "pnpm --filter @total-point/database seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "prettier": "^3.4.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

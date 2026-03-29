@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@total-point/liff",
+  "installCommand": "cd ../.. && pnpm install",
+  "outputDirectory": "apps/liff/.next",
+  "framework": "nextjs",
+  "rootDirectory": "apps/liff"
+}

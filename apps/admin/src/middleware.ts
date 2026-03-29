@@ -10,6 +10,12 @@ export default auth((req) => {
     "/api/auth",
     "/api/line",
     "/api/public",
+    "/api/campaigns",
+    "/api/rewards",
+    "/api/orders",
+    "/api/redemptions",
+    "/api/members/me",
+    "/api/points",
   ];
 
   const isPublicApi = publicApiRoutes.some((route) =>

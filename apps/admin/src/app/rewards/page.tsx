@@ -17,6 +17,7 @@ const typeLabels: Record<string, string> = {
 export default function RewardsPage() {
   const { data, mutate } = useSWR("/api/rewards", fetcher);
   const rewards = data?.rewards ?? [];
+  const [toast, setToast] = useState<string | null>(null);
 
   async function toggleActive(id: string, current: boolean) {
     await fetch(`/api/rewards/${id}`, {
@@ -29,12 +30,26 @@ export default function RewardsPage() {
 
   async function deleteReward(id: string, name: string) {
     if (!confirm(`ยืนยันลบ "${name}" ?`)) return;
-    await fetch(`/api/rewards/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/rewards/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setToast(`"${name}" ถูกลบเรียบร้อยแล้ว`);
+      setTimeout(() => setToast(null), 3000);
+    }
     mutate();
   }
 
   return (
     <div className="space-y-6">
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          {toast}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ของรางวัล</h1>

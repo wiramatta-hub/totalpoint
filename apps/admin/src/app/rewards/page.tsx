@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import useSWR from "swr";
-import { Gift, Plus, Pencil, ToggleLeft, ToggleRight } from "lucide-react";
+import { Gift, Plus, Pencil, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -24,6 +24,12 @@ export default function RewardsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isActive: !current }),
     });
+    mutate();
+  }
+
+  async function deleteReward(id: string, name: string) {
+    if (!confirm(`ยืนยันลบ "${name}" ?`)) return;
+    await fetch(`/api/rewards/${id}`, { method: "DELETE" });
     mutate();
   }
 
@@ -101,6 +107,13 @@ export default function RewardsPage() {
                   >
                     <Pencil size={13} />
                   </a>
+                  <button
+                    onClick={() => deleteReward(r.id, r.nameTh)}
+                    className="p-1 hover:bg-red-50 rounded text-red-400 hover:text-red-600"
+                    title="ลบ"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                   <button
                     onClick={() => toggleActive(r.id, r.isActive)}
                     className={`p-1 rounded ${

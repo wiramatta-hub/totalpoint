@@ -126,12 +126,12 @@ export async function GET(_req: NextRequest) {
       // Daily points for the last 14 days
       prisma.$queryRaw<Array<{ date: string; points: number; count: number }>>`
         SELECT
-          DATE(created_at) as date,
-          SUM(CASE WHEN points > 0 THEN points ELSE 0 END) as points,
-          COUNT(*) as count
-        FROM point_ledger
-        WHERE created_at >= NOW() - INTERVAL '14 days'
-        GROUP BY DATE(created_at)
+          DATE("createdAt") as date,
+          COALESCE(SUM(CASE WHEN points > 0 THEN points ELSE 0 END), 0) as points,
+          COUNT(*)::int as count
+        FROM "PointLedger"
+        WHERE "createdAt" >= NOW() - INTERVAL '14 days'
+        GROUP BY DATE("createdAt")
         ORDER BY date ASC
       `,
     ]);

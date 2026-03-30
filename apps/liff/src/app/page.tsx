@@ -101,7 +101,7 @@ export default function HomePage() {
                   <div className="mt-1 flex items-center gap-1.5">
                     <CampaignBadge type={c.type} />
                     <span className="text-xs text-gray-400">
-                      {c.pointsPerBaht} คะแนน/บาท
+                      {c.pointsPerBaht} บาท/คะแนน
                     </span>
                   </div>
                 </div>

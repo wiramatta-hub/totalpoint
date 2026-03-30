@@ -166,7 +166,7 @@ model Campaign {
   endDate   DateTime
 
   // การคำนวณคะแนน
-  pointsPerBaht         Float  @default(1.0)  // คะแนนต่อ 1 บาท
+  pointsPerBaht         Float  @default(1.0)  // บาทต่อ 1 คะแนน
   minPurchaseAmount     Float  @default(0)    // ยอดซื้อขั้นต่ำ (บาท)
   maxPointsPerOrder     Int?                  // จำกัดคะแนนสูงสุดต่อออเดอร์
   maxOrdersPerDay       Int?                  // จำกัดออเดอร์ต่อวันต่อลูกค้า

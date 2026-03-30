@@ -164,7 +164,7 @@ export default function NewCampaignPage() {
           <h2 className="font-semibold text-gray-900">กติกาคะแนน</h2>
           <div className="grid grid-cols-2 gap-4">
             <Field
-              label="คะแนนต่อ 1 บาท"
+              label="บาทต่อ 1 คะแนน"
               error={errors.pointsPerBaht?.message}
             >
               <input

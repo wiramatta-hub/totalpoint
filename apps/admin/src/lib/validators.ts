@@ -6,8 +6,8 @@ export const campaignSchema = z.object({
   description: z.string().optional(),
   type: z.enum(["PURCHASE", "BOOTH", "ACTIVITY", "BIRTHDAY"]),
   status: z.enum(["DRAFT", "ACTIVE", "PAUSED", "ENDED"]).default("DRAFT"),
-  startDate: z.string().datetime({ offset: true }),
-  endDate: z.string().datetime({ offset: true }),
+  startDate: z.string().min(1, "กรุณาระบุวันเริ่มต้น"),
+  endDate: z.string().min(1, "กรุณาระบุวันสิ้นสุด"),
   pointsPerBaht: z.number().min(0).default(1),
   minPurchaseAmount: z.number().min(0).default(0),
   maxPointsPerOrder: z.number().int().positive().nullable().optional(),
@@ -47,7 +47,7 @@ export const orderSubmitSchema = z.object({
   channel: z.enum(["SHOPEE", "TIKTOK", "LAZADA", "BOOTH", "HOMMALL", "MANUAL"]),
   orderNumber: z.string().min(1, "กรุณาระบุเลขคำสั่งซื้อ"),
   purchaseAmount: z.number().positive("ยอดซื้อต้องมากกว่า 0"),
-  purchaseDate: z.string().datetime({ offset: true }).optional(),
+  purchaseDate: z.string().min(1).optional(),
   boothSessionId: z.string().optional(),
 });
 

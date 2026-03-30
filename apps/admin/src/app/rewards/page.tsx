@@ -17,7 +17,7 @@ const typeLabels: Record<string, string> = {
 export default function RewardsPage() {
   const { data, mutate } = useSWR("/api/rewards", fetcher);
   const rewards = data?.rewards ?? [];
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
   async function toggleActive(id: string, current: boolean) {
     await fetch(`/api/rewards/${id}`, {
@@ -32,21 +32,29 @@ export default function RewardsPage() {
     if (!confirm(`ยืนยันลบ "${name}" ?`)) return;
     const res = await fetch(`/api/rewards/${id}`, { method: "DELETE" });
     if (res.ok) {
-      setToast(`"${name}" ถูกลบเรียบร้อยแล้ว`);
+      setToast({ message: `"${name}" ถูกลบเรียบร้อยแล้ว`, type: "success" });
+      setTimeout(() => setToast(null), 3000);
+      mutate();
+    } else {
+      const data = await res.json().catch(() => null);
+      setToast({ message: data?.error ?? "เกิดข้อผิดพลาดในการลบ", type: "error" });
       setTimeout(() => setToast(null), 3000);
     }
-    mutate();
   }
 
   return (
     <div className="space-y-6">
       {/* Toast notification */}
       {toast && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+        <div className={`fixed top-4 right-4 z-50 ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in`}>
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            {toast.type === "success" ? (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            ) : (
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            )}
           </svg>
-          {toast}
+          {toast.message}
         </div>
       )}
 

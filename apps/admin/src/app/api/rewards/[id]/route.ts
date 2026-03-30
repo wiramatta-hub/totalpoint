@@ -56,12 +56,36 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { id } = await params;
-    // Soft-delete
-    const reward = await prisma.reward.update({
+
+    // Check for existing redemptions
+    const reward = await prisma.reward.findUnique({
       where: { id },
-      data: { isActive: false },
+      include: { _count: { select: { redemptions: true, campaignRewards: true } } },
     });
-    return NextResponse.json({ reward });
+    if (!reward) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    if (reward._count.redemptions > 0) {
+      return NextResponse.json(
+        { error: "ไม่สามารถลบได้ เนื่องจากมีการแลกของรางวัลนี้แล้ว" },
+        { status: 400 }
+      );
+    }
+
+    // Hard-delete (also removes campaign links)
+    await prisma.campaignReward.deleteMany({ where: { rewardId: id } });
+    await prisma.reward.delete({ where: { id } });
+
+    await prisma.auditLog.create({
+      data: {
+        adminUserId: session.user?.id,
+        action: "DELETE",
+        entity: "Reward",
+        entityId: id,
+        oldData: reward as any,
+      },
+    });
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

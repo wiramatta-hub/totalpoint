@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd ../.. && pnpm turbo run build --filter=@total-point/liff",
+  "buildCommand": "cd ../.. && pnpm --filter @total-point/database generate && pnpm --filter @total-point/liff build",
   "installCommand": "cd ../.. && pnpm install",
   "outputDirectory": ".next",
   "framework": "nextjs"

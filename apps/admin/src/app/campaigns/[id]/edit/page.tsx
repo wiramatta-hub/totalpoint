@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { campaignSchema, type CampaignInput } from "@/lib/validators";
@@ -23,9 +23,18 @@ function generateBoothCode() {
   return `BOOTH-${code}`;
 }
 
-export default function NewCampaignPage() {
+function toLocalDatetime(date: string | Date) {
+  const d = new Date(date);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+export default function EditCampaignPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const {
@@ -33,32 +42,46 @@ export default function NewCampaignPage() {
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors },
   } = useForm<CampaignInput>({
     resolver: zodResolver(campaignSchema),
-    defaultValues: {
-      type: "PURCHASE",
-      status: "DRAFT",
-      pointsPerBaht: 1,
-      minPurchaseAmount: 200,
-      pointMultiplier: 1,
-      channels: ["SHOPEE", "TIKTOK", "LAZADA"],
-      isBoothEvent: false,
-      hasLottery: false,
-      boothBonusPoints: 0,
-    },
   });
 
   const watchChannels = watch("channels");
   const watchHasLottery = watch("hasLottery");
   const watchIsBoothEvent = watch("isBoothEvent");
 
-  // Auto-generate booth code when enabling booth event
   useEffect(() => {
-    if (watchIsBoothEvent && !watch("boothEventCode")) {
-      setValue("boothEventCode", generateBoothCode());
-    }
-  }, [watchIsBoothEvent, setValue, watch]);
+    fetch(`/api/campaigns/${id}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.campaign) {
+          const c = data.campaign;
+          reset({
+            name: c.name,
+            nameTh: c.nameTh,
+            description: c.description ?? "",
+            type: c.type,
+            status: c.status,
+            startDate: toLocalDatetime(c.startDate),
+            endDate: toLocalDatetime(c.endDate),
+            pointsPerBaht: c.pointsPerBaht,
+            minPurchaseAmount: c.minPurchaseAmount,
+            maxPointsPerOrder: c.maxPointsPerOrder,
+            maxOrdersPerDay: c.maxOrdersPerDay,
+            pointMultiplier: c.pointMultiplier,
+            channels: c.channels,
+            isBoothEvent: c.isBoothEvent,
+            boothEventCode: c.boothEventCode ?? "",
+            boothBonusPoints: c.boothBonusPoints,
+            hasLottery: c.hasLottery,
+            lotteryPurchasePerTicket: c.lotteryPurchasePerTicket,
+          });
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [id, reset]);
 
   function toggleChannel(ch: string) {
     const current = watchChannels ?? [];
@@ -81,8 +104,8 @@ export default function NewCampaignPage() {
         startDate: new Date(data.startDate).toISOString(),
         endDate: new Date(data.endDate).toISOString(),
       };
-      const res = await fetch("/api/campaigns", {
-        method: "POST",
+      const res = await fetch(`/api/campaigns/${id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -91,7 +114,7 @@ export default function NewCampaignPage() {
         setError(JSON.stringify(err.error));
         return;
       }
-      router.push("/campaigns");
+      router.push(`/campaigns/${id}`);
     } catch {
       setError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
     } finally {
@@ -120,12 +143,20 @@ export default function NewCampaignPage() {
   const inputCls =
     "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 text-gray-400">
+        กำลังโหลด...
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">สร้างแคมเปญใหม่</h1>
+        <h1 className="text-2xl font-bold text-gray-900">แก้ไขแคมเปญ</h1>
         <p className="text-gray-500 text-sm mt-0.5">
-          กำหนดเงื่อนไขการสะสมคะแนน ช่องทาง และรางวัล
+          แก้ไขเงื่อนไขการสะสมคะแนน ช่องทาง และรางวัล
         </p>
       </div>
 
@@ -136,20 +167,15 @@ export default function NewCampaignPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="ชื่อแคมเปญ (EN)" error={errors.name?.message}>
-              <input {...register("name")} className={inputCls} placeholder="Summer Sale 2026" />
+              <input {...register("name")} className={inputCls} />
             </Field>
             <Field label="ชื่อแคมเปญ (TH)" error={errors.nameTh?.message}>
-              <input {...register("nameTh")} className={inputCls} placeholder="แคมเปญซัมเมอร์" />
+              <input {...register("nameTh")} className={inputCls} />
             </Field>
           </div>
 
           <Field label="คำอธิบาย">
-            <textarea
-              {...register("description")}
-              className={inputCls}
-              rows={2}
-              placeholder="รายละเอียดแคมเปญ..."
-            />
+            <textarea {...register("description")} className={inputCls} rows={2} />
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
@@ -161,10 +187,12 @@ export default function NewCampaignPage() {
                 <option value="BIRTHDAY">วันเกิด</option>
               </select>
             </Field>
-            <Field label="สถานะเริ่มต้น">
+            <Field label="สถานะ">
               <select {...register("status")} className={inputCls}>
                 <option value="DRAFT">ร่าง</option>
-                <option value="ACTIVE">เปิดใช้งานทันที</option>
+                <option value="ACTIVE">เปิดใช้งาน</option>
+                <option value="PAUSED">หยุดชั่วคราว</option>
+                <option value="ENDED">สิ้นสุด</option>
               </select>
             </Field>
           </div>
@@ -183,10 +211,7 @@ export default function NewCampaignPage() {
         <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
           <h2 className="font-semibold text-gray-900">กติกาคะแนน</h2>
           <div className="grid grid-cols-2 gap-4">
-            <Field
-              label="บาทต่อ 1 คะแนน"
-              error={errors.pointsPerBaht?.message}
-            >
+            <Field label="บาทต่อ 1 คะแนน" error={errors.pointsPerBaht?.message}>
               <input
                 type="number"
                 step="0.1"
@@ -202,10 +227,7 @@ export default function NewCampaignPage() {
                 className={inputCls}
               />
             </Field>
-            <Field
-              label="ยอดซื้อขั้นต่ำ (บาท)"
-              error={errors.minPurchaseAmount?.message}
-            >
+            <Field label="ยอดซื้อขั้นต่ำ (บาท)" error={errors.minPurchaseAmount?.message}>
               <input
                 type="number"
                 {...register("minPurchaseAmount", { valueAsNumber: true })}
@@ -319,7 +341,7 @@ export default function NewCampaignPage() {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => router.push("/campaigns")}
+            onClick={() => router.push(`/campaigns/${id}`)}
             className="flex-1 px-6 py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             ยกเลิก
@@ -329,7 +351,7 @@ export default function NewCampaignPage() {
             disabled={saving}
             className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
           >
-            {saving ? "กำลังบันทึก..." : "บันทึกแคมเปญ"}
+            {saving ? "กำลังบันทึก..." : "บันทึกการเปลี่ยนแปลง"}
           </button>
         </div>
       </form>

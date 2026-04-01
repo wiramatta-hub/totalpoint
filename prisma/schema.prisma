@@ -1,0 +1,44 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String        @id @default(cuid())
+  line_uid       String        @unique
+  display_name   String
+  phone_number   String?
+  current_points Int           @default(0)
+  total_spent    Float         @default(0)
+  tier           String        @default("Member")
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+  transactions   Transaction[]
+}
+
+model Transaction {
+  id                    String   @id @default(cuid())
+  user_id               String
+  amount                Float
+  points_earned_or_burned Int
+  type                  String   // 'earn' | 'burn'
+  description           String?
+  created_at            DateTime @default(now())
+  user                  User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model Reward {
+  id              String  @id @default(cuid())
+  title           String
+  required_points Int
+  image_url       String?
+  is_active       Boolean @default(true)
+}

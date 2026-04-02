@@ -22,7 +22,17 @@ interface Reward {
   image_url: string | null;
 }
 
+interface Transaction {
+  id: string;
+  amount: number;
+  points_earned_or_burned: number;
+  type: string;
+  description: string | null;
+  created_at: string;
+}
+
 type AppState = "loading" | "ready" | "error";
+type Tab = "rewards" | "history";
 
 // ─── Tier helpers ─────────────────────────────────────────────────────────────
 
@@ -62,11 +72,30 @@ export default function HomePage() {
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [redeeming, setRedeeming] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("rewards");
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // ── Toast helper ────────────────────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  }, []);
+
+  // ── Fetch transaction history ───────────────────────────────────────────────
+  const fetchHistory = useCallback(async (lineUid: string) => {
+    setLoadingHistory(true);
+    try {
+      const res = await fetch(`/api/transactions?line_uid=${encodeURIComponent(lineUid)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTransactions(data.transactions ?? []);
+      }
+    } catch {
+      console.error("Failed to fetch history");
+    } finally {
+      setLoadingHistory(false);
+    }
   }, []);
 
   // ── LIFF init & data fetch ──────────────────────────────────────────────────
@@ -132,6 +161,8 @@ export default function HomePage() {
         } else if (data.redeemedReward) {
           showToast(`Redeemed: ${data.redeemedReward} (-${data.pointsBurned} pts)`);
         }
+        // Refresh history if on that tab
+        fetchHistory(user.line_uid);
       }
     );
 
@@ -140,7 +171,7 @@ export default function HomePage() {
       pusherClient.unsubscribe(`user-${user.line_uid}`);
       pusherClient.disconnect();
     };
-  }, [user?.line_uid, showToast]);
+  }, [user?.line_uid, showToast, fetchHistory]);
 
   // ── Redeem handler ──────────────────────────────────────────────────────────
   async function handleRedeem(rewardId: string) {
@@ -267,7 +298,31 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* ── Tabs ── */}
+        <div className="flex bg-white rounded-xl p-1 shadow-sm">
+          <button
+            onClick={() => setTab("rewards")}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === "rewards" ? "bg-[#06C755] text-white" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            🎁 ของรางวัล
+          </button>
+          <button
+            onClick={() => {
+              setTab("history");
+              if (user && transactions.length === 0) fetchHistory(user.line_uid);
+            }}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+              tab === "history" ? "bg-[#06C755] text-white" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            📋 ประวัติ
+          </button>
+        </div>
+
         {/* ── Reward Catalog ── */}
+        {tab === "rewards" ? (
         <section>
           <h2 className="text-base font-bold text-gray-700 mb-3">Reward Catalog</h2>
 
@@ -321,6 +376,50 @@ export default function HomePage() {
             </div>
           )}
         </section>
+        ) : null}
+
+        {/* ── Transaction History ── */}
+        {tab === "history" ? (
+        <section>
+          <h2 className="text-base font-bold text-gray-700 mb-3">ประวัติการรับ/ใช้คะแนน</h2>
+          {loadingHistory ? (
+            <div className="text-center py-8 text-gray-400">กำลังโหลด...</div>
+          ) : transactions.length === 0 ? (
+            <div className="bg-white rounded-2xl p-8 text-center text-gray-400 shadow-sm">
+              <p className="text-3xl mb-2">📋</p>
+              <p className="text-sm">ยังไม่มีประวัติ</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {transactions.map((tx) => (
+                <div key={tx.id} className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    tx.type === "earn" ? "bg-green-100" : "bg-red-100"
+                  }`}>
+                    <span className="text-lg">{tx.type === "earn" ? "💰" : "🎁"}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {tx.description ?? (tx.type === "earn" ? "ได้รับคะแนน" : "แลกของรางวัล")}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(tx.created_at).toLocaleString("th-TH", {
+                        day: "2-digit", month: "short", year: "numeric",
+                        hour: "2-digit", minute: "2-digit"
+                      })}
+                    </p>
+                  </div>
+                  <span className={`text-sm font-bold flex-shrink-0 ${
+                    tx.type === "earn" ? "text-green-600" : "text-red-500"
+                  }`}>
+                    {tx.type === "earn" ? "+" : "-"}{tx.points_earned_or_burned.toLocaleString()} pts
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+        ) : null}
 
         {/* ── Tier guide ── */}
         <section>
